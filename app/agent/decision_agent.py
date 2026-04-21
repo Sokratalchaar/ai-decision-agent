@@ -2,6 +2,7 @@ from app.rag.retriever import retrieve
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
+from app.memory.memory_store import get_user_preferences, update_user_preferences
 
 load_dotenv()
 
@@ -13,17 +14,17 @@ def decision_agent(user_query):
     docs = retrieve(user_query)
     context = "\n".join([doc.page_content for doc in docs])
 
+    # load user preferences
+    prefs = get_user_preferences()
+
+    prefs_text = "\n".join([f"{k}: {v}" for k, v in prefs.items()])
+
     # STEP 2: Build structured reasoning prompt
     prompt = f"""
 You are an AI Decision Agent.
 
-Follow these steps:
-
-1. Understand the user's goal
-2. Use the retrieved information
-3. Identify options
-4. Compare them clearly
-5. Give a final recommendation
+User preferences:
+{prefs_text}
 
 User query:
 {user_query}
@@ -31,8 +32,11 @@ User query:
 Retrieved context:
 {context}
 
-Respond in this format:
+Instructions:
+- Personalize the decision based on user preferences
+- If preferences are missing, assume reasonable defaults
 
+Respond in this format:
 1. Problem Understanding
 2. Options
 3. Comparison Table
