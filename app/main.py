@@ -1,6 +1,7 @@
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
+from app.rag.retriever import retrieve
 
 # load env variables
 load_dotenv()
@@ -10,12 +11,18 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def ask_llm(prompt):
-    system_prompt = """
+    docs = retrieve(prompt)
+
+    context = "\n".join([doc.page_content for doc in docs])
+
+    system_prompt = f"""
     You are an AI Decision Assistant.
 
-    Your job is to help users make decisions.
+    Use the following retrieved information to help answer:
 
-    Always respond in this structure:
+    {context}
+
+    Always respond in this format:
 
     1. Problem Understanding
     2. Options Identified
@@ -23,8 +30,6 @@ def ask_llm(prompt):
     4. Pros and Cons
     5. Final Recommendation
     6. Reasoning
-
-    Be clear, structured, and practical.
     """
 
     response = client.chat.completions.create(
