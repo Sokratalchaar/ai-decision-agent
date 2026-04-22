@@ -3,6 +3,8 @@ from openai import OpenAI
 import os
 from dotenv import load_dotenv
 from app.memory.memory_store import get_user_preferences, update_user_preferences
+from app.agent.research_agent import research_agent
+from app.agent.analysis_agent import analysis_agent
 
 load_dotenv()
 
@@ -35,52 +37,55 @@ def decision_agent(user_query):
 
     filtered_options = filter_options_by_budget(options, budget)
 
-
+    if not filtered_options:
+        return "No available options within your budget."
    
     options_text = "\n".join(
         [f"- {opt['name']} (${opt['price']})" for opt in filtered_options]
     )
 
-    # Retrieve context (RAG)
-    docs = retrieve(user_query)
-    context = "\n".join([doc.page_content for doc in docs])
+    # 💣 1. Research Agent
+    allowed_names = [opt["name"] for opt in filtered_options]
+
+    context = research_agent(user_query, allowed_names)
+
+    # 💣 2. Analysis Agent
+    analysis = analysis_agent(user_query, context, options_text, prefs_text)
 
     
 
-    # Build structured reasoning prompt
-    prompt = f"""
-You are an AI Decision Agent.
+    # Decision Agent (final)
+    final_prompt = f"""
+You are a Decision Agent.
 
 User preferences:
 {prefs_text}
 
-Available options (filtered by system):
+Available options:
 {options_text}
 
-Retrieved context:
-{context}
+Analysis:
+{analysis}
 
-Instructions:
-- ONLY choose from the available options
-- Do not suggest options outside the list
-- Strongly follow user preferences
+Important rules:
+- You are STRICTLY limited to the provided options
+- Do NOT introduce any new options under any condition
+- If an option is not listed, ignore it completely
+- If you mention any option outside the list, your answer is invalid
 
-Respond in this format:
+Now give FINAL decision.
+
+Format:
 1. Problem Understanding
 2. Options
-3. Comparison Table
-4. Pros and Cons
-5. Final Recommendation
-6. Reasoning
+3. Comparison Summary
+4. Final Recommendation
+5. Reasoning
 """
 
-
-    # Call LLM
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        messages=[{"role": "user", "content": final_prompt}]
     )
 
     return response.choices[0].message.content
