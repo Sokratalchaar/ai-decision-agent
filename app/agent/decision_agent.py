@@ -8,33 +8,62 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+def filter_options_by_budget(options, budget):
+    filtered = []
+
+    for option in options:
+        name = option["name"]
+        price = option["price"]
+
+        if price <= budget:
+            filtered.append(option)
+
+    return filtered
+
 
 def decision_agent(user_query):
-    # STEP 1: Retrieve context (RAG)
-    docs = retrieve(user_query)
-    context = "\n".join([doc.page_content for doc in docs])
-
     # load user preferences
     prefs = get_user_preferences()
 
-    prefs_text = "\n".join([f"{k}: {v}" for k, v in prefs.items()])
+    budget = int(prefs.get("budget", 999999))
+    prefs_text = "\n".join([f"- {k}: {v}" for k, v in prefs.items()])
 
-    # STEP 2: Build structured reasoning prompt
+    options = [
+        {"name": "MacBook Air M2", "price": 1200},
+        {"name": "Dell XPS 15", "price": 1800}
+    ]
+
+    filtered_options = filter_options_by_budget(options, budget)
+
+
+   
+    options_text = "\n".join(
+        [f"- {opt['name']} (${opt['price']})" for opt in filtered_options]
+    )
+
+    # Retrieve context (RAG)
+    docs = retrieve(user_query)
+    context = "\n".join([doc.page_content for doc in docs])
+
+    
+
+    # Build structured reasoning prompt
     prompt = f"""
 You are an AI Decision Agent.
 
 User preferences:
 {prefs_text}
 
-User query:
-{user_query}
+Available options (filtered by system):
+{options_text}
 
 Retrieved context:
 {context}
 
 Instructions:
-- Personalize the decision based on user preferences
-- If preferences are missing, assume reasonable defaults
+- ONLY choose from the available options
+- Do not suggest options outside the list
+- Strongly follow user preferences
 
 Respond in this format:
 1. Problem Understanding
@@ -45,7 +74,8 @@ Respond in this format:
 6. Reasoning
 """
 
-    # STEP 3: Call LLM
+
+    # Call LLM
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
