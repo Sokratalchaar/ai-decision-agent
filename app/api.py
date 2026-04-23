@@ -3,9 +3,18 @@ from pydantic import BaseModel
 
 from app.agent.decision_agent import decision_agent
 from app.memory.memory_store import update_user_preferences
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 🧠 شكل البيانات اللي رح تجي من المستخدم
 class DecisionRequest(BaseModel):
