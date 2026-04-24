@@ -1,14 +1,17 @@
 import { useState } from "react";
-import './App.css'
+
 function App() {
-  const [query, setQuery] = useState("");
-  const [budget, setBudget] = useState("");
-  const [goal, setGoal] = useState("");
-  const [priority, setPriority] = useState("");
-  const [result, setResult] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
+  const sendMessage = async () => {
+    if (!input) return;
+
+    const userMsg = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMsg]);
+
+    setInput("");
     setLoading(true);
 
     const res = await fetch("http://127.0.0.1:8000/decision", {
@@ -17,69 +20,58 @@ function App() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query,
-        budget: budget ? parseInt(budget) : null,
-        goal,
-        priority,
+        query: input,
       }),
     });
 
     const data = await res.json();
-    setResult(data.result);
+
+    const aiMsg = { role: "ai", content: data.result };
+
+    setMessages((prev) => [...prev, aiMsg]);
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-6">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
 
-      <div className="backdrop-blur-lg bg-white/10 border border-white/20 shadow-2xl rounded-3xl p-8 w-full max-w-xl text-white">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-        <h1 className="text-3xl font-bold text-center mb-6">
-          AI Decision Assistant 🚀
-        </h1>
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            className={`max-w-xl p-4 rounded-2xl ${
+              msg.role === "user"
+                ? "ml-auto bg-white text-black"
+                : "mr-auto bg-white/20 text-white"
+            }`}
+          >
+            {msg.content}
+          </div>
+        ))}
 
-        <div className="space-y-4">
-          <input
-            className="w-full p-3 rounded-lg bg-white/20 placeholder-gray-200 focus:outline-none"
-            placeholder="What do you want to decide?"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        {loading && (
+          <div className="text-white opacity-70">Thinking...</div>
+        )}
+      </div>
 
-          <input
-            className="w-full p-3 rounded-lg bg-white/20 placeholder-gray-200 focus:outline-none"
-            placeholder="Budget"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-          />
-
-          <input
-            className="w-full p-3 rounded-lg bg-white/20 placeholder-gray-200 focus:outline-none"
-            placeholder="Goal (e.g., programming)"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-          />
-
-          <input
-            className="w-full p-3 rounded-lg bg-white/20 placeholder-gray-200 focus:outline-none"
-            placeholder="Priority (e.g., battery)"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          />
-        </div>
+      {/* Input */}
+      <div className="p-4 bg-black/20 backdrop-blur-lg flex gap-2">
+        <input
+          className="flex-1 p-3 rounded-xl bg-white/20 text-white placeholder-gray-300 focus:outline-none"
+          placeholder="Ask anything..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        />
 
         <button
-          onClick={handleSubmit}
-          className="mt-6 w-full bg-white text-purple-700 font-semibold py-3 rounded-xl hover:scale-105 transition transform"
+          onClick={sendMessage}
+          className="bg-white text-purple-700 px-6 rounded-xl font-semibold"
         >
-          {loading ? "Thinking..." : "Get Decision"}
+          Send
         </button>
-
-        {result && (
-          <div className="mt-6 bg-white/20 p-4 rounded-xl whitespace-pre-wrap text-sm">
-            {result}
-          </div>
-        )}
       </div>
     </div>
   );
