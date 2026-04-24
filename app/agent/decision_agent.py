@@ -21,12 +21,51 @@ def filter_options_by_budget(options, budget):
             filtered.append(option)
 
     return filtered
+def extract_preferences_llm(text):
+    prompt = f"""
+Extract user preferences from the following text.
 
+Return ONLY JSON like this:
+{{
+  "budget": number or null,
+  "goal": string or null,
+  "priority": string or null
+}}
+
+Text:
+{text}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    content = response.choices[0].message.content
+
+    import json
+    try:
+        prefs = json.loads(content)
+    except:
+        prefs = {}
+
+    return prefs
 
 def decision_agent(user_query):
+     # 🔥 1. extract from LLM
+    extracted = extract_preferences_llm(user_query)
+
     # load user preferences
     prefs = get_user_preferences()
+    # 🔥 3. override memory with new data
+    cleaned = {k: v for k, v in extracted.items() if v}
 
+    prefs.update(cleaned)
+
+    # 🔥 4. SAVE memory (المهم 🔥)
+    if cleaned:
+        update_user_preferences(prefs)
+        
     budget = int(prefs.get("budget", 999999))
     prefs_text = "\n".join([f"- {k}: {v}" for k, v in prefs.items()])
 
@@ -58,6 +97,11 @@ def decision_agent(user_query):
     final_prompt = f"""
 You are a Decision Agent.
 
+IMPORTANT:
+- Only use the provided options
+- DO NOT introduce new options from context
+- If context mentions other products, ignore them
+
 User preferences:
 {prefs_text}
 
@@ -67,20 +111,7 @@ Available options:
 Analysis:
 {analysis}
 
-Important rules:
-- You are STRICTLY limited to the provided options
-- Do NOT introduce any new options under any condition
-- If an option is not listed, ignore it completely
-- If you mention any option outside the list, your answer is invalid
-
 Now give FINAL decision.
-
-Format:
-1. Problem Understanding
-2. Options
-3. Comparison Summary
-4. Final Recommendation
-5. Reasoning
 """
 
     response = client.chat.completions.create(
