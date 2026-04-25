@@ -6,33 +6,33 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-def analysis_agent(user_query, context, options_text, prefs_text):
+def analysis_agent(user_query, context, prefs_text):
     prompt = f"""
 You are an AI Analysis Agent.
 
 User preferences:
 {prefs_text}
 
-Available options:
-{options_text}
+User question:
+{user_query}
 
 Context:
 {context}
 
-Important rules:
-- You are STRICTLY limited to the provided options
-- Do NOT introduce any new options
-- Ignore any product not listed in the options
-- Even if other products appear in the context, do NOT use them
+IMPORTANT:
+- Focus ONLY on products mentioned in the user query
+- If the user mentioned specific products (e.g. MacBook, Dell), do NOT introduce others
+- You may use the context only to enrich information about those products
 
 Your job:
-- Analyze ONLY the given options
+- Identify the products mentioned in the question
 - Compare them clearly
+- Highlight key differences
 - Do NOT give final recommendation
 
 Output:
 - Key differences
-- Strengths and weaknesses of each option
+- Pros and cons
 """
 
     response = client.chat.completions.create(

@@ -51,6 +51,8 @@ Text:
 
     return prefs
 
+
+
 def decision_agent(user_query):
      # 🔥 1. extract from LLM
     extracted = extract_preferences_llm(user_query)
@@ -66,30 +68,14 @@ def decision_agent(user_query):
     if cleaned:
         update_user_preferences(prefs)
         
-    budget = int(prefs.get("budget", 999999))
+    
     prefs_text = "\n".join([f"- {k}: {v}" for k, v in prefs.items()])
 
-    options = [
-        {"name": "MacBook Air M2", "price": 1200},
-        {"name": "Dell XPS 15", "price": 1800}
-    ]
 
-    filtered_options = filter_options_by_budget(options, budget)
-
-    if not filtered_options:
-        return "No available options within your budget."
-   
-    options_text = "\n".join(
-        [f"- {opt['name']} (${opt['price']})" for opt in filtered_options]
-    )
-
-    # 💣 1. Research Agent
-    allowed_names = [opt["name"] for opt in filtered_options]
-
-    context = research_agent(user_query, allowed_names)
+    context = research_agent(user_query)
 
     # 💣 2. Analysis Agent
-    analysis = analysis_agent(user_query, context, options_text, prefs_text)
+    analysis = analysis_agent(user_query, context, prefs_text)
 
     
 
@@ -98,18 +84,20 @@ def decision_agent(user_query):
 You are a Decision Agent.
 
 IMPORTANT:
-- Only use the provided options
-- DO NOT introduce new options from context
-- If context mentions other products, ignore them
-
+- If the user mentions specific products, ONLY consider those
+- Do NOT introduce new products unless the user asked generally
 User preferences:
 {prefs_text}
 
-Available options:
-{options_text}
+User question:
+{user_query}
+
 
 Analysis:
 {analysis}
+
+context:
+{context}
 
 Now give FINAL decision.
 """
