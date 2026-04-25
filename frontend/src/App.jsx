@@ -1,19 +1,60 @@
 import { useState } from "react";
+import { useEffect } from "react";
 
 function App() {
-  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const currentChat = conversations.find(c => c.id === currentChatId);
+  const messages = currentChat ? currentChat.messages : [];
+  useEffect(() => {
+    const saved = localStorage.getItem("chats");
+  
+    if (saved) {
+      setConversations(JSON.parse(saved));
+    }
+  }, []);
+
   const sendMessage = async () => {
     if (!input) return;
-
-    const userMsg = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
-
+  
+    const userMsg = {
+      id: Date.now(),
+      role: "user",
+      content: input,
+    };
+  
+    let chatId = currentChatId;
+  
+    // 🆕 إذا ما في شات → أنشئ واحد
+    if (!chatId) {
+      chatId = Date.now();
+  
+      const newChat = {
+        id: chatId,
+        title: input.slice(0, 20),
+        messages: [userMsg],
+      };
+  
+      setConversations(prev => [...prev, newChat]);
+      setCurrentChatId(chatId);
+    } else {
+      // ➕ ضيف على الشات الحالي
+      setConversations((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? { ...chat, messages: [...chat.messages, userMsg] }
+            : chat
+        )
+      );
+    }
+  
     setInput("");
     setLoading(true);
-
+  
+    // 🔥 API
     const res = await fetch("http://127.0.0.1:8000/decision", {
       method: "POST",
       headers: {
@@ -23,55 +64,110 @@ function App() {
         query: input,
       }),
     });
-
+  
     const data = await res.json();
-
-    const aiMsg = { role: "ai", content: data.result };
-
-    setMessages((prev) => [...prev, aiMsg]);
+  
+    const aiMsg = {
+      id: Date.now() + 1,
+      role: "ai",
+      content: data.result,
+    };
+  
+    // ➕ ضيف رد AI
+    setConversations((prev) =>
+      prev.map((chat) =>
+        chat.id === chatId
+          ? { ...chat, messages: [...chat.messages, aiMsg] }
+          : chat
+      )
+    );
+  
     setLoading(false);
   };
+  useEffect(() => {
+    localStorage.setItem("chats", JSON.stringify(conversations));
+  }, [conversations]);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`max-w-xl p-4 rounded-2xl ${
-              msg.role === "user"
-                ? "ml-auto bg-white text-black"
-                : "mr-auto bg-white/20 text-white"
-            }`}
-          >
-            {msg.content}
-          </div>
-        ))}
-
-        {loading && (
-          <div className="text-white opacity-70">Thinking...</div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="p-4 bg-black/20 backdrop-blur-lg flex gap-2">
-        <input
-          className="flex-1 p-3 rounded-xl bg-white/20 text-white placeholder-gray-300 focus:outline-none"
-          placeholder="Ask anything..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        />
-
+    <div className="h-screen flex bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
+  
+      {/* Sidebar */}
+      <div className="w-72 bg-black/30 backdrop-blur-xl p-4 flex flex-col">
+  
+        <h2 className="text-white text-xl font-bold mb-4">
+          AI Assistant
+        </h2>
+  
         <button
-          onClick={sendMessage}
-          className="bg-white text-purple-700 px-6 rounded-xl font-semibold"
+          onClick={() => setCurrentChatId(null)}
+          className="bg-white text-purple-700 rounded-xl p-2 mb-4 font-semibold"
         >
-          Send
+          + New Chat
         </button>
+  
+        <div className="flex-1 overflow-y-auto space-y-2">
+  
+          {conversations.map((chat) => (
+            <div
+              key={chat.id}
+              onClick={() => setCurrentChatId(chat.id)}
+              className={`p-3 rounded-xl cursor-pointer transition ${
+                chat.id === currentChatId
+                  ? "bg-white text-black"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              }`}
+            >
+              {chat.title.length > 20
+                ? chat.title.slice(0, 20) + "..."
+                : chat.title}
+            </div>
+          ))}
+  
+        </div>
+      </div>
+  
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+  
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+  
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`max-w-xl p-4 rounded-2xl ${
+                msg.role === "user"
+                  ? "ml-auto bg-white text-black"
+                  : "mr-auto bg-white/20 text-white"
+              }`}
+            >
+              {msg.content}
+            </div>
+          ))}
+  
+          {loading && (
+            <div className="text-white opacity-70">Thinking...</div>
+          )}
+        </div>
+  
+        {/* Input */}
+        <div className="p-4 bg-black/20 backdrop-blur-lg flex gap-2">
+          <input
+            className="flex-1 p-3 rounded-xl bg-white/20 text-white placeholder-gray-300 focus:outline-none"
+            placeholder="Ask anything..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          />
+  
+          <button
+            onClick={sendMessage}
+            className="bg-white text-purple-700 px-6 rounded-xl font-semibold"
+          >
+            Send
+          </button>
+        </div>
+  
       </div>
     </div>
   );
