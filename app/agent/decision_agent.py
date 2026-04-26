@@ -51,9 +51,31 @@ Text:
 
     return prefs
 
+def classify_query(query):
+    prompt = f"""
+Classify the following user query into ONE of these categories:
 
+- decision → user wants recommendation
+- comparison → comparing products
+- options → user asks for available choices/options
+- info → asking about a product
+- general → greeting or casual
+
+Query:
+{query}
+
+Answer ONLY with one word.
+"""
+
+    res = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return res.choices[0].message.content.strip().lower()
 
 def decision_agent(user_query):
+    query_type = classify_query(user_query)
      # 🔥 1. extract from LLM
     extracted = extract_preferences_llm(user_query)
 
@@ -69,37 +91,48 @@ def decision_agent(user_query):
         update_user_preferences(prefs)
         
     
-    prefs_text = "\n".join([f"- {k}: {v}" for k, v in prefs.items()])
+    prefs_text = ""
+    if query_type == "decision":
+       prefs_text = "\n".join([f"- {k}: {v}" for k, v in prefs.items()])
 
 
     context = research_agent(user_query)
 
     # 💣 2. Analysis Agent
-    analysis = analysis_agent(user_query, context, prefs_text)
+    analysis = ""
+    if query_type == "decision":
+       analysis = analysis_agent(user_query, context, prefs_text)
 
     
 
     # Decision Agent (final)
     final_prompt = f"""
-You are a Decision Agent.
+You are an AI assistant.
+
+Query type: {query_type}
 
 IMPORTANT:
-- If the user mentions specific products, ONLY consider those
-- Do NOT introduce new products unless the user asked generally
-User preferences:
-{prefs_text}
+- If query is "general" → respond naturally, ignore memory
+- If query is "info" → explain using context only
+- If query is "decision" → use memory and analysis and give a recommendation
+- If query is "options" → list available options clearly WITHOUT giving a final recommendation
+
+STRICT RULES:
+- ALWAYS answer based on the user's question intent
+- DO NOT force a recommendation unless it's a decision query
+- If listing options → be clear and structured (bullet points)
 
 User question:
 {user_query}
 
+{"User preferences:\n" + prefs_text if (prefs_text and query_type == "decision") else ""}
 
-Analysis:
-{analysis}
+{"Analysis:\n" + analysis if (analysis and query_type == "decision") else ""}
 
-context:
+Context:
 {context}
 
-Now give FINAL decision.
+Now give the best possible answer.
 """
 
     response = client.chat.completions.create(
