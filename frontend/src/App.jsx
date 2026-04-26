@@ -6,16 +6,33 @@ function App() {
   const [currentChatId, setCurrentChatId] = useState(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const currentChat = conversations.find(c => c.id === currentChatId);
   const messages = currentChat ? currentChat.messages : [];
   useEffect(() => {
-    const saved = localStorage.getItem("chats");
+    const loadChats = async () => {
+      const res = await fetch("http://127.0.0.1:8000/chats");
+      const data = await res.json();
   
-    if (saved) {
-      setConversations(JSON.parse(saved));
-    }
+      setConversations(data);
+  
+      if (data.length > 0) {
+        setCurrentChatId(data[data.length - 1].id); // 🔥 آخر شات
+      }
+  
+      setLoaded(true); // 🔥 مهم جداً
+    };
+  
+    loadChats();
   }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+  
+    localStorage.setItem("chats", JSON.stringify(conversations));
+    localStorage.setItem("currentChatId", currentChatId);
+  }, [conversations, currentChatId, loaded]);
 
   const sendMessage = async () => {
     if (!input) return;
@@ -85,8 +102,20 @@ function App() {
     setLoading(false);
   };
   useEffect(() => {
-    localStorage.setItem("chats", JSON.stringify(conversations));
-  }, [conversations]);
+    if (!loaded) return; // ❌ لا تحفظ قبل load
+  
+    const saveChats = async () => {
+      await fetch("http://127.0.0.1:8000/chats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(conversations),
+      });
+    };
+  
+    saveChats();
+  }, [conversations, loaded]);
 
   return (
     <div className="h-screen flex bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
