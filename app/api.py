@@ -121,3 +121,20 @@ def make_decision(request: DecisionRequest):
         "query": request.query,
         "result": result
     }
+
+
+@app.delete("/chats/{chat_id}")
+def delete_chat(chat_id: int, user=Depends(get_current_user)):
+    db = SessionLocal()
+
+    chat = db.query(Chat).filter(
+         Chat.id == chat_id,
+         Chat.user_id == user
+    ).first()
+
+    if chat:
+        db.delete(chat)
+        db.commit()
+
+    db.close()
+    return {"status":"deleted"}    
