@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useEffect } from "react";
+import Login from "./Login";
+import Register from "./Register";
 
 function App() {
   const [conversations, setConversations] = useState([]);
@@ -7,25 +9,55 @@ function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [isLoginPage, setIsLoginPage] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    !!localStorage.getItem("token")
+  );
+  console.log("isLoggedIn:", isLoggedIn);
+  localStorage.getItem("token")
+  
 
   const currentChat = conversations.find(c => c.id === currentChatId);
   const messages = currentChat ? currentChat.messages : [];
+
+
   useEffect(() => {
     const loadChats = async () => {
-      const res = await fetch("http://127.0.0.1:8000/chats");
-      const data = await res.json();
+      const token = localStorage.getItem("token");
   
-      setConversations(data);
+      if (!token) return;
   
-      if (data.length > 0) {
-        setCurrentChatId(data[data.length - 1].id); // 🔥 آخر شات
+      try {
+        const res = await fetch("http://127.0.0.1:8000/chats", {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+  
+        if (!res.ok) {
+          console.log("fetch failed");
+          return;
+        }
+  
+        const data = await res.json();
+  
+        console.log("CHATS:", data); // 🔥 مهم
+  
+        if (data.length > 0) {
+          setConversations(data);
+          setCurrentChatId(data[data.length - 1].id);
+        }
+  
+        setLoaded(true); // 🔥 لازم تكون هون
+      } catch (err) {
+        console.log("ERROR:", err);
       }
-  
-      setLoaded(true); // 🔥 مهم جداً
     };
   
     loadChats();
   }, []);
+
+
 
   useEffect(() => {
     if (!loaded) return;
@@ -70,12 +102,14 @@ function App() {
   
     setInput("");
     setLoading(true);
-  
+    const token = localStorage.getItem("token");
+    if (!token) return;
     // 🔥 API
     const res = await fetch("http://127.0.0.1:8000/decision", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
       },
       body: JSON.stringify({
         query: input,
@@ -102,20 +136,37 @@ function App() {
     setLoading(false);
   };
   useEffect(() => {
-    if (!loaded) return; // ❌ لا تحفظ قبل load
+    if (!loaded || conversations.length === 0) return; 
   
     const saveChats = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
       await fetch("http://127.0.0.1:8000/chats", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(conversations),
+        body: JSON.stringify({
+          conversations,
+        }),
       });
     };
   
     saveChats();
   }, [conversations, loaded]);
+
+
+  if (!isLoggedIn) {
+    return isLoginPage ? (
+      <Login
+        setIsLoggedIn={setIsLoggedIn}
+        setIsLoginPage={setIsLoginPage}
+      />
+    ) : (
+      <Register setIsLoginPage={setIsLoginPage} />
+    );
+  }
 
   return (
     <div className="h-screen flex bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">

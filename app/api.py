@@ -3,25 +3,34 @@ from pydantic import BaseModel
 
 from app.agent.decision_agent import decision_agent
 from app.memory.memory_store import update_user_preferences
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Body
+from app.utils.jwt import create_token
+
 
 from app.db import engine, Base
+from app.db import SessionLocal
+from app.models.user import User
+from app.utils.security import hash_password
+from app.utils.security import verify_password
 from app.models.chat import Chat
 from app.services.chat_db import get_all_chats, save_all_chats
 
-Base.metadata.create_all(bind=engine)
+from fastapi import Depends
+from app.utils.auth import get_current_user
 
 
+from fastapi import FastAPI, Body
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173"],  # 🔥 حددها هيك
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+Base.metadata.create_all(bind=engine)
 
 # 🧠 شكل البيانات اللي رح تجي من المستخدم
 class DecisionRequest(BaseModel):
@@ -35,20 +44,64 @@ class DecisionRequest(BaseModel):
 def root():
     return {"message": "AI Decision API is running 🚀"}
 
+
+
+@app.post("/register")
+def register(data: dict = Body(...)):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.email == data["email"]).first()
+
+    if existing:
+        return {"error": "Email already exists"}
+
+    hashed = hash_password(data["password"])
+
+    user = User(
+        email=data["email"],
+        password=hashed
+    )
+
+    db.add(user)
+    db.commit()
+
+    db.close()
+
+    return {"message": "User created"}
+
+
+
+@app.post("/login")
+def login(data: dict = Body(...)):
+    db = SessionLocal()
+
+    user = db.query(User).filter(User.email == data["email"]).first()
+
+    if not user or not verify_password(data["password"], user.password):
+        return {"error": "Invalid credentials"}
+
+    token = create_token({"user_id": user.id})
+
+    return {"token": token}
+
+
+
 @app.get("/chats")
-def get_chats():
-    return get_all_chats()
+def get_chats(user=Depends(get_current_user)):
+    return get_all_chats(user)
+
 
 
 @app.post("/chats")
-def save_chats(chats: list = Body(...)):
-    save_all_chats(chats)
+def save_chats(data: dict = Body(...), user=Depends(get_current_user)):
+    conversations = data["conversations"]
+    save_all_chats(conversations, user)
     return {"status": "ok"}
+
 
 
 @app.post("/decision")
 def make_decision(request: DecisionRequest):
-    # 🟢 نخزّن preferences
+    # preferences
     prefs = {}
 
     if request.budget:
@@ -61,7 +114,7 @@ def make_decision(request: DecisionRequest):
     if prefs:
         update_user_preferences(prefs)
 
-    # 🟢 نشغّل الagent
+ 
     result = decision_agent(request.query)
 
     return {
