@@ -178,28 +178,71 @@ function App() {
           AI Assistant
         </h2>
   
+        {/* New Chat */}
         <button
           onClick={() => setCurrentChatId(null)}
-          className="bg-white text-purple-700 rounded-xl p-2 mb-4 font-semibold"
+          className="bg-white text-purple-700 rounded-xl p-2 mb-3 font-semibold hover:opacity-90"
         >
           + New Chat
         </button>
   
+        {/* Logout */}
+        <button
+          onClick={() => {
+            localStorage.removeItem("token");
+            setIsLoggedIn(false);
+          }}
+          className="bg-red-500 text-white rounded-xl p-2 mb-4 font-semibold hover:bg-red-600"
+        >
+          Logout
+        </button>
+  
+        {/* Chats List */}
         <div className="flex-1 overflow-y-auto space-y-2">
   
           {conversations.map((chat) => (
             <div
               key={chat.id}
               onClick={() => setCurrentChatId(chat.id)}
-              className={`p-3 rounded-xl cursor-pointer transition ${
+              className={`flex justify-between items-center p-3 rounded-xl cursor-pointer transition ${
                 chat.id === currentChatId
                   ? "bg-white text-black"
                   : "bg-white/10 text-white hover:bg-white/20"
               }`}
             >
-              {chat.title.length > 20
-                ? chat.title.slice(0, 20) + "..."
-                : chat.title}
+              {/* Title */}
+              <span className="truncate">
+                {chat.title.length > 20
+                  ? chat.title.slice(0, 20) + "..."
+                  : chat.title}
+              </span>
+  
+              {/* Delete Button */}
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+  
+                  const token = localStorage.getItem("token");
+  
+                  await fetch(`http://127.0.0.1:8000/chats/${chat.id}`, {
+                    method: "DELETE",
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  });
+  
+                  setConversations(prev =>
+                    prev.filter(c => c.id !== chat.id)
+                  );
+  
+                  if (currentChatId === chat.id) {
+                    setCurrentChatId(null);
+                  }
+                }}
+                className="ml-2 text-red-400 hover:text-red-600"
+              >
+                ❌
+              </button>
             </div>
           ))}
   
@@ -242,7 +285,7 @@ function App() {
   
           <button
             onClick={sendMessage}
-            className="bg-white text-purple-700 px-6 rounded-xl font-semibold"
+            className="bg-white text-purple-700 px-6 rounded-xl font-semibold hover:opacity-90"
           >
             Send
           </button>
